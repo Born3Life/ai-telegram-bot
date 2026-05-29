@@ -11,7 +11,7 @@ from aiogram import Bot, Dispatcher, __version__
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import SERVER_SOFTWARE, USER_AGENT, AiohttpSession
 from aiogram.enums import ParseMode
-from aiohttp import ClientSession, TCPConnector
+from aiohttp import ClientSession, TCPConnector, web
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -45,11 +45,33 @@ class ProxySession(AiohttpSession):
         return self._session
 
 
+async def _health_handler(_request: web.Request) -> web.Response:
+    return web.Response(text="ok")
+
+
+async def _health_server(port: int) -> None:
+    """Minimal HTTP server so Render doesn't kill the process."""
+    app = web.Application()
+    app.router.add_get("/health", _health_handler)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info("health server listening on port %d", port)
+
+    await asyncio.Event().wait()
+
+
 async def main() -> None:
-    """Initialize bot and dispatcher, register routers, start polling."""
+    """Initialize bot, health server (if on Render), start polling."""
     if not BOT_TOKEN:
         msg = "BOT_TOKEN is not set in .env"
         raise RuntimeError(msg)
+
+    port = getenv("PORT")
+    if port:
+        asyncio.create_task(_health_server(int(port)))
 
     if TELEGRAM_PROXY:
         os.environ["HTTP_PROXY"] = TELEGRAM_PROXY
