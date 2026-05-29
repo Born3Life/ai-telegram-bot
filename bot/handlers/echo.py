@@ -5,6 +5,7 @@ import logging
 from aiogram import Router, types
 from aiogram.filters import Command
 from aiogram.utils.markdown import hbold
+from aiogram.types import ReplyKeyboardRemove
 
 from bot.services.ai_service import ask_ai
 
@@ -22,6 +23,7 @@ async def handle_start(message: types.Message) -> None:
 
     await message.answer(
         f"Привет, {hbold(user.full_name)}! Я AI-бот. Отправь мне любое сообщение.",
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
