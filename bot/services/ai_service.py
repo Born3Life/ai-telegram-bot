@@ -8,7 +8,7 @@ from typing import Any
 import urllib3
 from requests import Session
 
-from bot.services.storage import add_message, get_history
+from bot.services.storage import FALLBACK_MODELS, add_message, get_history, get_user_models_async
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -24,36 +24,25 @@ def _api_key() -> str | None:
 def _proxy() -> str | None:
     return getenv("TELEGRAM_PROXY")
 
+
 SYSTEM_PROMPT = (
     "Ты дружелюбный Telegram-бот. Отвечай кратко и только по-русски. "
     "Не более 500 символов."
 )
 
-
-FALLBACK_MODELS = [
-    "openai/gpt-4o-mini",
-    "openai/gpt-4o-mini:free",
-    "google/gemini-2.0-flash-exp:free",
-    "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
-]
-
-
-def _models() -> list[str]:
-    configured = getenv("OPENROUTER_MODEL")
-    if configured:
-        return [configured, *FALLBACK_MODELS]
-    return FALLBACK_MODELS[:]
-
-
-def _synced_request(user_message: str, history: list[dict[str, str]]) -> str:
-    """Synchronous HTTP request to OpenRouter (runs in executor)."""
+def _synced_request(
+    user_message: str,
+    history: list[dict[str, str]],
+    models: list[str],
+    system_prompt: str | None = None,
+) -> str:
     key = _api_key()
     if not key:
         return "API-ключ OpenRouter не настроен."
 
     proxy_url = _proxy()
+    prompt = system_prompt or SYSTEM_PROMPT
 
-    models = _models()
     for attempt in range(2):
         for model in models:
             session = Session()
@@ -65,7 +54,7 @@ def _synced_request(user_message: str, history: list[dict[str, str]]) -> str:
             payload: dict[str, Any] = {
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": prompt},
                     *history,
                     {"role": "user", "content": user_message},
                 ],
@@ -97,22 +86,21 @@ def _synced_request(user_message: str, history: list[dict[str, str]]) -> str:
 
 
 async def ask_ai(
-    user_id: int, user_message: str, save_history: bool = True,
+    user_id: int,
+    user_message: str,
+    save_history: bool = True,
+    models: list[str] | None = None,
+    system_prompt: str | None = None,
 ) -> str:
-    """Send a message to OpenRouter AI with user history and return the response.
+    if models is None:
+        models = await get_user_models_async(user_id)
+    if not models:
+        models = FALLBACK_MODELS
 
-    Args:
-        user_id: Telegram user ID for history persistence.
-        user_message: The user's text message.
-        save_history: Persist messages to DB (default True).
-
-    Returns:
-        The AI response text, or an error message on failure.
-    """
     history = await get_history(user_id) if save_history else []
     loop = asyncio.get_running_loop()
     response = await loop.run_in_executor(
-        None, _synced_request, user_message, history,
+        None, _synced_request, user_message, history, models, system_prompt,
     )
 
     if save_history:

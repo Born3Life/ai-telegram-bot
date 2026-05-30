@@ -9,6 +9,11 @@ from aiogram.types import BufferedInputFile
 
 from bot.services.ai_service import ask_ai
 from bot.services.image_service import generate_image
+from bot.services.storage import (
+    can_generate_image_async,
+    get_user_models_async,
+    increment_images_async,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +28,6 @@ PROMPT_TEMPLATE = (
 
 @router.message(Command("draw"))
 async def handle_draw(message: types.Message) -> None:
-    """Generate an image from a text prompt via Hugging Face."""
     user = message.from_user
     if user is None:
         return
@@ -34,16 +38,26 @@ async def handle_draw(message: types.Message) -> None:
         await message.answer("Напиши промпт после /draw.\nПример: /draw кот в космосе")
         return
 
+    allowed, remaining = await can_generate_image_async(user.id)
+    if not allowed:
+        await message.answer(
+            "🎨 <b>Лимит изображений на сегодня исчерпан</b>\n\n"
+            "💎 /subscribe — увеличить лимит с Premium или Pro",
+        )
+        return
+
     sent = await message.answer("🎨 Думаю над промптом...")
     logger.info("draw request from user %s: %s", user.id, prompt[:80])
 
-    # Enhance prompt via text AI (translate + add quality terms)
-    enhanced = await ask_ai(user.id, PROMPT_TEMPLATE.format(prompt), save_history=False)
+    models = await get_user_models_async(user.id)
+    enhanced = await ask_ai(user.id, PROMPT_TEMPLATE.format(prompt), save_history=False, models=models)
     logger.info("enhanced prompt: %s", enhanced[:120])
 
     await sent.edit_text("🎨 Рисую...")
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, generate_image, enhanced)
+
+    await increment_images_async(user.id)
 
     if isinstance(result, str):
         await sent.edit_text(result)
