@@ -10,7 +10,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
-HF_BASE = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+HF_BASE = (
+    "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+)
 
 
 def _hf_token() -> str | None:
@@ -33,8 +35,7 @@ def generate_image(prompt: str) -> bytes | str:
     token = _hf_token()
     if not token:
         return (
-            "HF_TOKEN не указан в .env.\n"
-            "Получи токен: huggingface.co/settings/tokens"
+            "HF_TOKEN не указан в .env.\nПолучи токен: huggingface.co/settings/tokens"
         )
 
     session = Session()

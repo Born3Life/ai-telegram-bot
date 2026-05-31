@@ -28,7 +28,9 @@ async def handle_start(message: types.Message) -> None:
         return
 
     tier = await get_user_tier_async(user.id)
-    tier_label = {"free": "Бесплатно", "premium": "Premium", "pro": "Pro"}.get(tier, "Free")
+    tier_label = {"free": "Бесплатно", "premium": "Premium", "pro": "Pro"}.get(
+        tier, "Free"
+    )
 
     await message.answer(
         f"Привет, {hbold(user.full_name)}! 🤖\n\n"
@@ -71,8 +73,7 @@ async def handle_set_prompt(message: types.Message) -> None:
     tier = await get_user_tier_async(user.id)
     if tier != "pro":
         await message.answer(
-            "✏️ Свой системный промпт доступен только на тарифе Pro.\n"
-            "💎 /subscribe",
+            "✏️ Свой системный промпт доступен только на тарифе Pro.\n💎 /subscribe",
         )
         return
 
@@ -86,8 +87,11 @@ async def handle_set_prompt(message: types.Message) -> None:
         return
 
     from bot.services.storage import set_custom_prompt_async
+
     await set_custom_prompt_async(user.id, prompt)
-    await message.answer("✅ Системный промпт сохранён! Он будет использоваться в следующих ответах.")
+    await message.answer(
+        "✅ Системный промпт сохранён! Он будет использоваться в следующих ответах."
+    )
 
 
 @router.message()

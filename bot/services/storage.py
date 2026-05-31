@@ -92,12 +92,15 @@ def _add_message(user_id: int, role: str, content: str) -> None:
             "INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)",
             (user_id, role, content),
         )
-        conn.execute("""
+        conn.execute(
+            """
             DELETE FROM messages WHERE id IN (
                 SELECT id FROM messages WHERE user_id = ?
                 ORDER BY id DESC LIMIT -1 OFFSET 40
             )
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         conn.commit()
 
 
@@ -116,13 +119,15 @@ def _get_or_create_user(user_id: int) -> dict[str, Any]:
     with sqlite3.connect(str(DB_PATH)) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            "SELECT * FROM users WHERE user_id = ?", (user_id,),
+            "SELECT * FROM users WHERE user_id = ?",
+            (user_id,),
         ).fetchone()
         if row:
             user = dict(row)
         else:
             conn.execute(
-                "INSERT INTO users (user_id) VALUES (?)", (user_id,),
+                "INSERT INTO users (user_id) VALUES (?)",
+                (user_id,),
             )
             conn.commit()
             user = {

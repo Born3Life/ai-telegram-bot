@@ -50,7 +50,9 @@ async def handle_draw(message: types.Message) -> None:
     logger.info("draw request from user %s: %s", user.id, prompt[:80])
 
     models = await get_user_models_async(user.id)
-    enhanced = await ask_ai(user.id, PROMPT_TEMPLATE.format(prompt), save_history=False, models=models)
+    enhanced = await ask_ai(
+        user.id, PROMPT_TEMPLATE.format(prompt), save_history=False, models=models
+    )
     logger.info("enhanced prompt: %s", enhanced[:120])
 
     image_prompt = prompt if enhanced.startswith("Не удалось") else enhanced

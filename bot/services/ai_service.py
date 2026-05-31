@@ -8,7 +8,12 @@ from typing import Any
 import urllib3
 from requests import Session
 
-from bot.services.storage import FALLBACK_MODELS, add_message, get_history, get_user_models_async
+from bot.services.storage import (
+    FALLBACK_MODELS,
+    add_message,
+    get_history,
+    get_user_models_async,
+)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -29,6 +34,7 @@ SYSTEM_PROMPT = (
     "Ты дружелюбный Telegram-бот. Отвечай кратко и только по-русски. "
     "Не более 500 символов."
 )
+
 
 def _synced_request(
     user_message: str,
@@ -76,7 +82,9 @@ def _synced_request(
             except Exception:
                 logger.warning(
                     "OpenRouter request failed on %s (attempt %d)",
-                    model, attempt + 1, exc_info=True,
+                    model,
+                    attempt + 1,
+                    exc_info=True,
                 )
                 session.close()
                 continue
@@ -100,7 +108,12 @@ async def ask_ai(
     history = await get_history(user_id) if save_history else []
     loop = asyncio.get_running_loop()
     response = await loop.run_in_executor(
-        None, _synced_request, user_message, history, models, system_prompt,
+        None,
+        _synced_request,
+        user_message,
+        history,
+        models,
+        system_prompt,
     )
 
     if save_history:
