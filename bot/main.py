@@ -78,3 +78,7 @@ async def main() -> None:
             await health_task
         except asyncio.CancelledError:
             pass
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
