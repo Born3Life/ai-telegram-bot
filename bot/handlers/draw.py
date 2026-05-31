@@ -53,9 +53,10 @@ async def handle_draw(message: types.Message) -> None:
     enhanced = await ask_ai(user.id, PROMPT_TEMPLATE.format(prompt), save_history=False, models=models)
     logger.info("enhanced prompt: %s", enhanced[:120])
 
+    image_prompt = prompt if enhanced.startswith("Не удалось") else enhanced
     await sent.edit_text("🎨 Рисую...")
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, generate_image, enhanced)
+    result = await loop.run_in_executor(None, generate_image, image_prompt)
 
     await increment_images_async(user.id)
 
