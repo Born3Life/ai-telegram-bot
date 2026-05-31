@@ -38,7 +38,13 @@ async def _health_server(port: int) -> None:
     await site.start()
     logger.info("health server listening on port %d", port)
 
-    await asyncio.Event().wait()
+    try:
+        await asyncio.Event().wait()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await site.stop()
+        await runner.cleanup()
 
 
 async def main() -> None:
@@ -48,8 +54,9 @@ async def main() -> None:
         raise RuntimeError(msg)
 
     port = getenv("PORT")
+    health_task: asyncio.Task | None = None
     if port:
-        asyncio.create_task(_health_server(int(port)))
+        health_task = asyncio.create_task(_health_server(int(port)))
 
     bot = Bot(
         token=BOT_TOKEN,
@@ -65,6 +72,9 @@ async def main() -> None:
     logger.info("bot started")
     await dp.start_polling(bot, polling_timeout=1)
 
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    if health_task:
+        health_task.cancel()
+        try:
+            await health_task
+        except asyncio.CancelledError:
+            pass
