@@ -10,8 +10,8 @@ from aiogram.types import BufferedInputFile
 from bot.services.ai_service import ask_ai
 from bot.services.image_service import generate_image
 from bot.services.storage import (
+    FALLBACK_MODELS,
     can_generate_image_async,
-    get_user_models_async,
     increment_images_async,
 )
 
@@ -20,9 +20,10 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 PROMPT_TEMPLATE = (
-    "Translate this to English for AI image generation. "
-    "Add visual details, lighting, style. "
-    "Return ONLY the English prompt, no extra text:\n{}"
+    "You are an AI image prompt generator. "
+    "Translate the user's request to English and expand with visual details "
+    "(lighting, style, colors, mood). "
+    "Return ONLY the English prompt, 10-50 words, no labels.\n\n{}"
 )
 
 
@@ -49,13 +50,15 @@ async def handle_draw(message: types.Message) -> None:
     sent = await message.answer("🎨 Думаю над промптом...")
     logger.info("draw request from user %s: %s", user.id, prompt[:80])
 
-    models = await get_user_models_async(user.id)
     enhanced = await ask_ai(
-        user.id, PROMPT_TEMPLATE.format(prompt), save_history=False, models=models
+        user.id, PROMPT_TEMPLATE.format(prompt), save_history=False, models=FALLBACK_MODELS
     ) or ""
-    logger.info("enhanced prompt: %s", enhanced[:120])
-
-    image_prompt = prompt if (not enhanced or enhanced.startswith("Не удалось")) else enhanced
+    if not enhanced or enhanced.startswith("Не удалось"):
+        logger.info("enhancement failed, using original prompt")
+        image_prompt = prompt
+    else:
+        logger.info("enhanced prompt: %s", enhanced[:120])
+        image_prompt = enhanced
     await sent.edit_text("🎨 Рисую...")
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, generate_image, image_prompt)
