@@ -76,7 +76,7 @@ def _synced_request(
                     logger.warning("OpenRouter error on %s: %s", model, msg)
                     session.close()
                     continue
-                result = data["choices"][0]["message"]["content"]
+                result = data["choices"][0]["message"]["content"] or ""
                 session.close()
                 return result
             except Exception:
