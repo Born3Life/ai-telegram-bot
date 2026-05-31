@@ -178,8 +178,20 @@ def _check_tier_valid(user: dict[str, Any]) -> dict[str, Any]:
     return user
 
 
+def _is_admin(user_id: int) -> bool:
+    from os import getenv
+    val = getenv("ADMIN_ID")
+    if val:
+        try:
+            return user_id == int(val)
+        except ValueError:
+            return False
+    return False
+
+
 def can_send_message(user_id: int) -> tuple[bool, int]:
-    """Return (allowed, remaining_today)."""
+    if _is_admin(user_id):
+        return True, 999
     user = _get_or_create_user(user_id)
     user = _check_tier_valid(user)
     user = _reset_daily_if_needed(user)
@@ -193,6 +205,8 @@ def can_send_message(user_id: int) -> tuple[bool, int]:
 
 
 def can_generate_image(user_id: int) -> tuple[bool, int]:
+    if _is_admin(user_id):
+        return True, 999
     user = _get_or_create_user(user_id)
     user = _check_tier_valid(user)
     user = _reset_daily_if_needed(user)
