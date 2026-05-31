@@ -55,7 +55,7 @@ async def handle_draw(message: types.Message) -> None:
     ) or ""
     logger.info("enhanced prompt: %s", enhanced[:120])
 
-    image_prompt = prompt if enhanced.startswith("Не удалось") else enhanced
+    image_prompt = prompt if (not enhanced or enhanced.startswith("Не удалось")) else enhanced
     await sent.edit_text("🎨 Рисую...")
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, generate_image, image_prompt)
