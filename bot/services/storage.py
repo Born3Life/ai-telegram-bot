@@ -19,20 +19,20 @@ TIERS: dict[str, dict[str, Any]] = {
         "messages_per_day": 10,
         "images_per_day": 2,
         "models": [
-            "google/gemini-2.0-flash-exp:free",
-            "openai/gpt-4o-mini:free",
-            "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
+            "google/gemma-4-26b-a4b-it:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "qwen/qwen3-coder:free",
         ],
         "custom_prompt": False,
     },
     "premium": {
         "label": "Premium",
         "price_stars": 50,
-        "messages_per_day": -1,  # unlimited
+        "messages_per_day": -1,
         "images_per_day": 20,
         "models": [
             "openai/gpt-4o-mini",
-            "openai/gpt-4o-mini:free",
+            "google/gemma-4-26b-a4b-it:free",
         ],
         "custom_prompt": False,
     },
@@ -51,9 +51,9 @@ TIERS: dict[str, dict[str, Any]] = {
 
 FALLBACK_MODELS = [
     "openai/gpt-4o-mini",
-    "openai/gpt-4o-mini:free",
-    "google/gemini-2.0-flash-exp:free",
-    "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen3-coder:free",
 ]
 
 

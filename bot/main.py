@@ -76,10 +76,13 @@ async def main() -> None:
     if TELEGRAM_PROXY:
         os.environ["HTTP_PROXY"] = TELEGRAM_PROXY
         os.environ["HTTPS_PROXY"] = TELEGRAM_PROXY
+        session: AiohttpSession = ProxySession()
+    else:
+        session = AiohttpSession()
 
     bot = Bot(
         token=BOT_TOKEN,
-        session=ProxySession(),
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
