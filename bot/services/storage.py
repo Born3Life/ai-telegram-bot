@@ -19,9 +19,8 @@ TIERS: dict[str, dict[str, Any]] = {
         "messages_per_day": 10,
         "images_per_day": 2,
         "models": [
-            "google/gemma-4-26b-a4b-it:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "qwen/qwen3-coder:free",
+            "openrouter/free",
+            "deepseek/deepseek-v4-flash:free",
         ],
         "custom_prompt": False,
     },
@@ -32,7 +31,7 @@ TIERS: dict[str, dict[str, Any]] = {
         "images_per_day": 20,
         "models": [
             "openai/gpt-4o-mini",
-            "google/gemma-4-26b-a4b-it:free",
+            "openrouter/free",
         ],
         "custom_prompt": False,
     },
@@ -51,9 +50,8 @@ TIERS: dict[str, dict[str, Any]] = {
 
 FALLBACK_MODELS = [
     "openai/gpt-4o-mini",
-    "google/gemma-4-26b-a4b-it:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen3-coder:free",
+    "openrouter/free",
+    "deepseek/deepseek-v4-flash:free",
 ]
 
 
