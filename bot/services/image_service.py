@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import logging
 from os import getenv
 
@@ -10,8 +11,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_BASE = "https://openrouter.ai/api/v1/images/generations"
-DOWNLOAD_TIMEOUT = 120
+OPENROUTER_CHAT = "https://openrouter.ai/api/v1/chat/completions"
+TIMEOUT = 120
 
 
 def _api_key() -> str | None:
@@ -23,7 +24,7 @@ def _proxy() -> str | None:
 
 
 def generate_image(prompt: str) -> bytes | str:
-    """Generate an image via OpenRouter (FLUX.1-schnell).
+    """Generate an image via OpenRouter chat completions (FLUX.1-schnell).
 
     Args:
         prompt: Text description of the image.
@@ -46,12 +47,13 @@ def generate_image(prompt: str) -> bytes | str:
     })
 
     payload = {
-        "model": "black-forest-labs/flux-1-schnell",
-        "prompt": prompt,
+        "model": "black-forest-labs/flux-schnell",
+        "messages": [{"role": "user", "content": prompt}],
+        "modalities": ["image"],
     }
 
     try:
-        resp = session.post(OPENROUTER_BASE, json=payload, timeout=DOWNLOAD_TIMEOUT)
+        resp = session.post(OPENROUTER_CHAT, json=payload, timeout=TIMEOUT)
         data = resp.json()
 
         if "error" in data:
@@ -60,13 +62,26 @@ def generate_image(prompt: str) -> bytes | str:
             logger.error("OpenRouter image error: %s", msg)
             return f"❌ OpenRouter: {msg}"
 
-        image_url = data.get("data", [{}])[0].get("url")
-        if not image_url:
-            logger.error("no image URL in response: %s", data)
-            return "❌ Не удалось получить ссылку на изображение."
+        images = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("images", [])
+        )
+        if not images:
+            logger.error("no images in response: %s", str(data)[:300])
+            return "❌ Модель не вернула изображение."
 
-        logger.info("downloading image from %s", image_url[:80])
-        img_resp = session.get(image_url, timeout=DOWNLOAD_TIMEOUT)
+        raw_url = images[0].get("image_url", {}).get("url", "")
+        if not raw_url:
+            return "❌ Пустой URL изображения."
+
+        if raw_url.startswith("data:image"):
+            _, b64_data = raw_url.split(",", 1)
+            logger.info("decoding base64 image (%d chars)", len(b64_data))
+            return base64.b64decode(b64_data)
+
+        logger.info("downloading image from %s", raw_url[:80])
+        img_resp = session.get(raw_url, timeout=TIMEOUT)
         if img_resp.status_code != 200:
             return "❌ Ошибка загрузки изображения."
         return img_resp.content
