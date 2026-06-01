@@ -10,13 +10,12 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
-HF_BASE = (
-    "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
-)
+OPENROUTER_BASE = "https://openrouter.ai/api/v1/images/generations"
+DOWNLOAD_TIMEOUT = 120
 
 
-def _hf_token() -> str | None:
-    return getenv("HF_TOKEN")
+def _api_key() -> str | None:
+    return getenv("OPENROUTER_API_KEY")
 
 
 def _proxy() -> str | None:
@@ -24,7 +23,7 @@ def _proxy() -> str | None:
 
 
 def generate_image(prompt: str) -> bytes | str:
-    """Generate an image via Hugging Face Inference API.
+    """Generate an image via OpenRouter (FLUX.1-schnell).
 
     Args:
         prompt: Text description of the image.
@@ -32,38 +31,48 @@ def generate_image(prompt: str) -> bytes | str:
     Returns:
         Raw image bytes on success, or an error message string on failure.
     """
-    token = _hf_token()
-    if not token:
-        return (
-            "HF_TOKEN не указан в .env.\nПолучи токен: huggingface.co/settings/tokens"
-        )
+    key = _api_key()
+    if not key:
+        return "OPENROUTER_API_KEY не указан."
 
+    proxy_url = _proxy()
     session = Session()
     session.verify = False
-    proxy_url = _proxy()
     if proxy_url:
         session.proxies.update({"http": proxy_url, "https": proxy_url})
-    session.headers.update({"Authorization": f"Bearer {token}"})
+    session.headers.update({
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    })
+
+    payload = {
+        "model": "black-forest-labs/flux-1-schnell",
+        "prompt": prompt,
+    }
 
     try:
-        resp = session.post(HF_BASE, json={"inputs": prompt}, timeout=120)
-        if resp.status_code == 503:
-            data = resp.json()
-            logger.warning("Hugging Face model loading: %s", data.get("error", ""))
-            return "Модель загружается, попробуй через 30 секунд."
-        if resp.status_code == 402:
-            logger.error("Hugging Face 402: no credits")
-            return (
-                "❌ Закончились кредиты Hugging Face.\n"
-                "Пополни: huggingface.co/settings/billing\n"
-                "Или добавьте HF_TOKEN с активными credits."
-            )
-        if resp.status_code != 200:
-            logger.error("Hugging Face error %d: %s", resp.status_code, resp.text[:200])
-            return "❌ Ошибка генерации. Попробуй позже."
-        return resp.content
+        resp = session.post(OPENROUTER_BASE, json=payload, timeout=DOWNLOAD_TIMEOUT)
+        data = resp.json()
+
+        if "error" in data:
+            err = data.get("error", {})
+            msg = err.get("message", str(err))
+            logger.error("OpenRouter image error: %s", msg)
+            return f"❌ OpenRouter: {msg}"
+
+        image_url = data.get("data", [{}])[0].get("url")
+        if not image_url:
+            logger.error("no image URL in response: %s", data)
+            return "❌ Не удалось получить ссылку на изображение."
+
+        logger.info("downloading image from %s", image_url[:80])
+        img_resp = session.get(image_url, timeout=DOWNLOAD_TIMEOUT)
+        if img_resp.status_code != 200:
+            return "❌ Ошибка загрузки изображения."
+        return img_resp.content
+
     except Exception:
-        logger.exception("Hugging Face request failed")
-        return "Не удалось связаться с Hugging Face."
+        logger.exception("OpenRouter image request failed")
+        return "❌ Не удалось связаться с сервисом генерации."
     finally:
         session.close()
