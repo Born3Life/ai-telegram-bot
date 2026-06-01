@@ -51,9 +51,16 @@ def generate_image(prompt: str) -> bytes | str:
             data = resp.json()
             logger.warning("Hugging Face model loading: %s", data.get("error", ""))
             return "Модель загружается, попробуй через 30 секунд."
+        if resp.status_code == 402:
+            logger.error("Hugging Face 402: no credits")
+            return (
+                "❌ Закончились кредиты Hugging Face.\n"
+                "Пополни: huggingface.co/settings/billing\n"
+                "Или добавьте HF_TOKEN с активными credits."
+            )
         if resp.status_code != 200:
             logger.error("Hugging Face error %d: %s", resp.status_code, resp.text[:200])
-            return f"Ошибка {resp.status_code} при генерации."
+            return "❌ Ошибка генерации. Попробуй позже."
         return resp.content
     except Exception:
         logger.exception("Hugging Face request failed")
