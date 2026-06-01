@@ -47,7 +47,7 @@ def generate_image(prompt: str) -> bytes | str:
     })
 
     payload = {
-        "model": "black-forest-labs/flux-schnell",
+        "model": "black-forest-labs/flux.2-flex",
         "messages": [{"role": "user", "content": prompt}],
         "modalities": ["image"],
     }
