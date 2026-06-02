@@ -53,7 +53,7 @@ async def handle_draw(message: types.Message) -> None:
     enhanced = await ask_ai(
         user.id, PROMPT_TEMPLATE.format(prompt), save_history=False, models=FALLBACK_MODELS
     ) or ""
-    if not enhanced or enhanced.startswith("Не удалось"):
+    if not enhanced or enhanced.startswith(("Не удалось", "API-ключ")):
         logger.info("enhancement failed, using original prompt")
         image_prompt = prompt
     else:
