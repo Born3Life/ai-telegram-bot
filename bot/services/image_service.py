@@ -19,7 +19,7 @@ FONT_FALLBACK = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 
 def _hf_token() -> str | None:
-    return getenv("HF_TOKEN")
+    return getenv("HF_TOKEN") or getenv("NG_HF_TOKEN")
 
 
 def _fallback_image(text: str) -> bytes:
