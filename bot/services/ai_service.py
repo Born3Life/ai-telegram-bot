@@ -1,34 +1,17 @@
 from __future__ import annotations
 
-import asyncio
+import json
 import logging
+import ssl
+import urllib.request
 from os import getenv
-from typing import Any
 
-import urllib3
-from requests import Session
-
-from bot.services.storage import (
-    FALLBACK_MODELS,
-    add_message,
-    get_history,
-    get_user_models_async,
-)
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from bot.services.storage import add_message, get_history
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-
-def _api_key() -> str | None:
-    return getenv("OPENROUTER_API_KEY")
-
-
-def _proxy() -> str | None:
-    return getenv("TELEGRAM_PROXY")
-
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+CTX = ssl._create_unverified_context()
 
 SYSTEM_PROMPT = (
     "Ты дружелюбный Telegram-бот. Отвечай кратко и только по-русски. "
@@ -36,61 +19,45 @@ SYSTEM_PROMPT = (
 )
 
 
-def _synced_request(
-    user_message: str,
-    history: list[dict[str, str]],
-    models: list[str],
-    system_prompt: str | None = None,
-) -> str:
-    key = _api_key()
+def _gemini_key() -> str | None:
+    return getenv("NG_GEMINI_KEY") or getenv("GEMINI_API_KEY")
+
+
+def _ask_gemini(system: str, user: str) -> str:
+    key = _gemini_key()
     if not key:
-        return "API-ключ OpenRouter не настроен."
+        return "API-ключ Gemini не настроен."
 
-    proxy_url = _proxy()
-    prompt = system_prompt or SYSTEM_PROMPT
+    payload = json.dumps({
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"parts": [{"text": user}]}],
+        "generationConfig": {"maxOutputTokens": 500, "temperature": 0.8, "topP": 0.95},
+    }).encode()
 
-    for attempt in range(2):
-        for model in models:
-            session = Session()
-            session.verify = False
-            if proxy_url:
-                session.proxies.update({"http": proxy_url, "https": proxy_url})
-            session.headers.update({"Authorization": f"Bearer {key}"})
+    req = urllib.request.Request(
+        f"{GEMINI_URL}?key={key}",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30, context=CTX) as r:
+            data = json.loads(r.read())
+    except Exception as e:
+        logger.warning("Gemini request failed: %s", e)
+        return "Не удалось связаться с AI-сервисом."
 
-            payload: dict[str, Any] = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": prompt},
-                    *history,
-                    {"role": "user", "content": user_message},
-                ],
-                "max_tokens": 300,
-            }
+    candidates = data.get("candidates", [])
+    if not candidates:
+        logger.warning("Gemini: no candidates: %s", str(data)[:200])
+        return "AI не дал ответа."
 
-            try:
-                resp = session.post(OPENROUTER_BASE_URL, json=payload, timeout=60)
-                data = resp.json()
-                if "error" in data:
-                    err = data.get("error", {})
-                    msg = err.get("message", err)
-                    logger.warning("OpenRouter error on %s: %s", model, msg)
-                    session.close()
-                    continue
-                result = data["choices"][0]["message"]["content"] or ""
-                session.close()
-                return result
-            except Exception:
-                logger.warning(
-                    "OpenRouter request failed on %s (attempt %d)",
-                    model,
-                    attempt + 1,
-                    exc_info=True,
-                )
-                session.close()
-                continue
-        logger.info("all models failed, retrying (%d/2)", attempt + 1)
+    text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+    if not text:
+        return "AI вернул пустой ответ."
 
-    return "Не удалось связаться с AI-сервисом."
+    logger.info("Gemini OK (%d chars)", len(text))
+    return text
 
 
 async def ask_ai(
@@ -100,21 +67,21 @@ async def ask_ai(
     models: list[str] | None = None,
     system_prompt: str | None = None,
 ) -> str:
-    if models is None:
-        models = await get_user_models_async(user_id)
-    if not models:
-        models = FALLBACK_MODELS
+    prompt = system_prompt or SYSTEM_PROMPT
 
     history = await get_history(user_id) if save_history else []
-    loop = asyncio.get_running_loop()
-    response = await loop.run_in_executor(
-        None,
-        _synced_request,
-        user_message,
-        history,
-        models,
-        system_prompt,
-    )
+    history_block = ""
+    if history:
+        history_block = "\n".join(
+            f"{'Пользователь' if h['role'] == 'user' else 'Бот'}: {h['text']}"
+            for h in history[-6:]
+        )
+
+    user_text = user_message
+    if history_block:
+        user_text = f"История:\n{history_block}\n\nСообщение: {user_message}"
+
+    response = _ask_gemini(prompt, user_text)
 
     if save_history:
         await add_message(user_id, "user", user_message)

@@ -1,62 +1,78 @@
 from __future__ import annotations
 
 import logging
-from os import getenv
+from io import BytesIO
 
-import urllib3
-from requests import Session
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
-HF_BASE = (
-    "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
-)
-
-
-def _hf_token() -> str | None:
-    return getenv("HF_TOKEN")
-
-
-def _proxy() -> str | None:
-    return getenv("TELEGRAM_PROXY")
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONT_FALLBACK = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 
 def generate_image(prompt: str) -> bytes | str:
-    """Generate an image via Hugging Face Inference API.
+    """Generate an image with gradient background and text overlay.
+    No API keys needed — uses Pillow.
 
     Args:
-        prompt: Text description of the image.
+        prompt: Text to display on the image.
 
     Returns:
-        Raw image bytes on success, or an error message string on failure.
+        Raw JPEG bytes on success, or an error message string on failure.
     """
-    token = _hf_token()
-    if not token:
-        return (
-            "HF_TOKEN не указан в .env.\nПолучи токен: huggingface.co/settings/tokens"
-        )
-
-    session = Session()
-    session.verify = False
-    proxy_url = _proxy()
-    if proxy_url:
-        session.proxies.update({"http": proxy_url, "https": proxy_url})
-    session.headers.update({"Authorization": f"Bearer {token}"})
-
-    try:
-        resp = session.post(HF_BASE, json={"inputs": prompt}, timeout=120)
-        if resp.status_code == 503:
-            data = resp.json()
-            logger.warning("Hugging Face model loading: %s", data.get("error", ""))
-            return "Модель загружается, попробуй через 30 секунд."
-        if resp.status_code != 200:
-            logger.error("Hugging Face error %d: %s", resp.status_code, resp.text[:200])
-            return f"Ошибка {resp.status_code} при генерации."
-        return resp.content
-    except Exception:
-        logger.exception("Hugging Face request failed")
-        return "Не удалось связаться с Hugging Face."
-    finally:
-        session.close()
+    W, H = 1024, 768
+    c1, c2 = (30, 40, 80), (60, 80, 160)
+    img = Image.new("RGB", (W, H), c1)
+    draw = ImageDraw.Draw(img)
+    for y in range(H):
+        r = int(c1[0] + (c2[0] - c1[0]) * y / H)
+        g = int(c1[1] + (c2[1] - c1[1]) * y / H)
+        b = int(c1[2] + (c2[2] - c1[2]) * y / H)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+    bar_h = int(H * 0.30)
+    overlay = Image.new("RGBA", (W, bar_h), (255, 255, 255, 220))
+    img.paste(overlay, (0, 0), overlay)
+    font = None
+    for path in [FONT_PATH, FONT_FALLBACK]:
+        for size in range(40, 18, -2):
+            try:
+                font = ImageFont.truetype(path, size)
+                break
+            except OSError:
+                continue
+        if font:
+            break
+    if not font:
+        try:
+            font = ImageFont.load_default()
+        except Exception:
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            return buf.getvalue()
+    text = prompt[:120]
+    lines = []
+    for line in text.split("\n"):
+        if draw.textlength(line, font=font) > W - 40:
+            words = line.split()
+            cur = ""
+            for w in words:
+                test = (cur + " " + w).strip()
+                if draw.textlength(test, font=font) > W - 40:
+                    lines.append(cur)
+                    cur = w
+                else:
+                    cur = test
+            if cur:
+                lines.append(cur)
+        else:
+            lines.append(line)
+    y = (bar_h - len(lines) * (size + 4)) // 2 + 4
+    for line in lines:
+        tw = draw.textlength(line, font=font)
+        x = (W - tw) // 2
+        draw.text((x, y), line, font=font, fill=(20, 20, 20))
+        y += size + 4
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    return buf.getvalue()
