@@ -122,4 +122,4 @@ async def handle_ai_response(message: types.Message) -> None:
     sent = await message.answer("⏳ Думаю...")
     response = await ask_ai(user.id, text, system_prompt=custom_prompt)
     await increment_messages_async(user.id)
-    await sent.edit_text(response)
+    await sent.edit_text(response or "❌ Пустой ответ от AI. Попробуй переформулировать.")

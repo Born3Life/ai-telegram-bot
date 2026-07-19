@@ -22,7 +22,7 @@ SYSTEM_PROMPT = (
 
 
 def _gemini_key() -> str | None:
-    return getenv("NG_GEMINI_KEY") or getenv("GEMINI_API_KEY")
+    return getenv("NG_GEMINI_KEY") or getenv("GEMINI_API_KEY") or getenv("GEMINI_KEY")
 
 
 def _openrouter_key() -> str | None:
