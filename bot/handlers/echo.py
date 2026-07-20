@@ -9,6 +9,7 @@ from aiogram.types import ReplyKeyboardRemove
 
 from bot.services.ai_service import ask_ai
 from bot.services.storage import (
+    FALLBACK_MODELS,
     can_generate_image_async,
     can_send_message_async,
     get_user_custom_prompt_async,
@@ -121,7 +122,7 @@ async def handle_ai_response(message: types.Message) -> None:
 
     sent = await message.answer("⏳ Думаю...")
     try:
-        response = await ask_ai(user.id, text, system_prompt=custom_prompt)
+        response = await ask_ai(user.id, text, system_prompt=custom_prompt, models=FALLBACK_MODELS)
     except Exception as exc:
         logger.exception("ai request failed")
         await sent.edit_text(f"❌ Ошибка: {exc}")
