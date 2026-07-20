@@ -120,6 +120,11 @@ async def handle_ai_response(message: types.Message) -> None:
     custom_prompt = await get_user_custom_prompt_async(user.id)
 
     sent = await message.answer("⏳ Думаю...")
-    response = await ask_ai(user.id, text, system_prompt=custom_prompt)
+    try:
+        response = await ask_ai(user.id, text, system_prompt=custom_prompt)
+    except Exception as exc:
+        logger.exception("ai request failed")
+        await sent.edit_text(f"❌ Ошибка: {exc}")
+        return
     await increment_messages_async(user.id)
     await sent.edit_text(response or "❌ Пустой ответ от AI. Попробуй переформулировать.")
