@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 CTX = ssl._create_unverified_context()
 
 SYSTEM_PROMPT = (
@@ -27,6 +28,10 @@ def _gemini_key() -> str | None:
 
 def _openrouter_key() -> str | None:
     return getenv("OPENROUTER_API_KEY")
+
+
+def _deepseek_key() -> str | None:
+    return getenv("DEEPSEEK_API_KEY")
 
 
 def _ask_gemini(system: str, user: str) -> str | None:
@@ -103,6 +108,40 @@ def _ask_openrouter(system: str, user: str, models: list[str]) -> str | None:
     return None
 
 
+def _ask_deepseek(system: str, user: str) -> str | None:
+    key = _deepseek_key()
+    if not key:
+        return None
+
+    payload = json.dumps({
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "max_tokens": 500,
+    }).encode()
+
+    req = urllib.request.Request(
+        DEEPSEEK_URL,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30, context=CTX) as r:
+            data = json.loads(r.read())
+        text = data["choices"][0]["message"]["content"].strip()
+        logger.info("DeepSeek OK (%d chars)", len(text))
+        return text
+    except Exception as e:
+        logger.warning("DeepSeek failed: %s", e)
+        return None
+
+
 async def ask_ai(
     user_id: int,
     user_message: str,
@@ -125,6 +164,8 @@ async def ask_ai(
         user_text = f"История:\n{history_block}\n\nСообщение: {user_message}"
 
     response = _ask_gemini(prompt, user_text)
+    if response is None:
+        response = _ask_deepseek(prompt, user_text)
     if response is None and models:
         response = _ask_openrouter(prompt, user_text, models)
     if response is None:
